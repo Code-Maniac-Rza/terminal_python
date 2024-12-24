@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Expense Tracker</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.5/xterm.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.5/xterm.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+
+        #terminal {
+            height: 400px;
+            width: 800px;
+            margin: 0 auto;
+            border-radius: 5px;
+            overflow: hidden;
+            padding: 4px;
+            background-color: #1e1e1e;
+        }
+
+        .terminal {
+            padding: 10px;
+        }
+
+        #status {
+            text-align: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            font-weight: bold;
+        }
+
+        /* Custom terminal styling */
+        .xterm-viewport {
+            overflow-y: auto !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="status">Connecting...</div>
+    <div id="terminal"></div>
+
+    <script>
+        const currentOrigin = window.location.origin;
+        const BACKEND_URL = currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1')
+            ? 'http://localhost:5000'
+            : 'https://ex-tracker-backend.onrender.com';
+
+        console.log('Attempting to connect to:', BACKEND_URL);
+
+        const statusDiv = document.getElementById('status');
+
+        const socket = io(BACKEND_URL, {
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 1000,
+            timeout: 10000,
+            autoConnect: true,
+            withCredentials: false
+        });
+
+        // Initialize terminal with improved configuration
+        const term = new Terminal({
+            cursorBlink: true,
+            fontSize: 14,
+            fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+            theme: {
+                background: '#1e1e1e',
+                foreground: '#ffffff',
+                cursor: '#ffffff'
+            },
+            cols: 80,             // Set fixed number of columns
+            rows: 24,             // Set fixed number of rows
+            scrollback: 1000,     // Number of lines to keep in scrollback
+            lineHeight: 1.2,      // Increase line height for better readability
+            letterSpacing: 0,     // Normal letter spacing
+            rendererType: 'canvas',
+            convertEol: true      // Convert line endings
+        });
+
+        term.open(document.getElementById('terminal'));
+
+        // Format and write welcome message
+        function writeFormattedOutput(text) {
+            // Split the text into lines
+            const lines = text.split('\n');
+
+            // Process and write each line
+            lines.forEach((line) => {
+                if (line.trim()) {
+                    // Add proper spacing/padding for commands
+                    if (line.startsWith('  ')) {
+                        term.write('    ' + line.trim() + '\r\n');
+                    } else {
+                        term.write(line + '\r\n');
+                    }
+                }
+            });
+        }
+
+        socket.on('connect', () => {
+            console.log('Socket connected successfully');
+            statusDiv.textContent = 'Connected to server';
+            statusDiv.style.color = 'green';
+            socket.emit('connection_establish', {});
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Socket connection error:', error);
+            statusDiv.textContent = `Connection error: ${error.message}`;
+            statusDiv.style.color = 'red';
+            writeFormattedOutput('\r\nConnection error. Please check if the server is running.\r\n');
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('Socket disconnected:', reason);
+            statusDiv.textContent = `Disconnected: ${reason}`;
+            statusDiv.style.color = 'orange';
+        });
+
+        socket.on('error', (error) => {
+            console.error('Socket error:', error);
+            statusDiv.textContent = `Socket error: ${error.message}`;
+            statusDiv.style.color = 'red';
+        });
+
+        let currentLine = '';
+        let prompt = '> ';
+
+        socket.on('console_output', (data) => {
+            console.log('Received output:', data);
+            writeFormattedOutput(data);
+        });
+
+        // Enhanced command handling
+        term.onData(e => {
+            if (e === '\r') { // Enter key
+                console.log('Sending command:', currentLine);
+                socket.emit('command_entered', currentLine);
+                currentLine = '';
+                // Don't write \r\n here as it will be handled by the server response
+            } else if (e === '\u007F') { // Backspace
+                if (currentLine.length > 0) {
+                    currentLine = currentLine.slice(0, -1);
+                    term.write('\b \b');
+                }
+            } else {
+                currentLine += e;
+                term.write(e);
+            }
+        });
+
+        if (!socket.connected) {
+            console.log('Initial connection failed, attempting to reconnect...');
+            socket.connect();
+        }
+
+        // Fit terminal to container
+        function fitTerminal() {
+            const terminalElement = document.getElementById('terminal');
+            term.resize(80, Math.floor(terminalElement.clientHeight / 20));
+        }
+
+        // Initial fit and listen for window resize
+        fitTerminal();
+        window.addEventListener('resize', fitTerminal);
+    </script>
+</body>
+
+</html>
