@@ -157,8 +157,9 @@ def handle_disconnect():
 if __name__ == '__main__':
     import eventlet
     import eventlet.wsgi
+    
     port = int(os.environ.get('PORT', 5000))
     logger.info(f"Starting server on port {port}")
-    
-    # Use eventlet as the production server
+
+    # Use eventlet for production
     eventlet.wsgi.server(eventlet.listen(('0.0.0.0', port)), app)
