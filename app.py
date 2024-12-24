@@ -155,6 +155,10 @@ def handle_disconnect():
         del subprocess_locks[sid]
 
 if __name__ == '__main__':
+    import eventlet
+    import eventlet.wsgi
     port = int(os.environ.get('PORT', 5000))
     logger.info(f"Starting server on port {port}")
-    socketio.run(app, host='0.0.0.0', port=port, debug=True)
+    
+    # Use eventlet as the production server
+    eventlet.wsgi.server(eventlet.listen(('0.0.0.0', port)), app)
