@@ -48,9 +48,7 @@
 
     <script>
         const currentOrigin = window.location.origin;
-        const BACKEND_URL = currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1')
-            ? 'http://localhost:5000'
-            : 'https://ex-tracker-backend.onrender.com';
+        const BACKEND_URL = window.location.origin;;
 
         console.log('Attempting to connect to:', BACKEND_URL);
 
